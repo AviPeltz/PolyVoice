@@ -29,7 +29,6 @@ def main():
         f.write(html_parse['text'])
 
     with open(f"{WIKI_PAGE}.wikitext", 'w') as f:
-        print(wikitext_parse)
         f.write(wikitext_parse['wikitext'])
 
 
