@@ -22,14 +22,15 @@ def main():
         headers=headers).json()['parse']
 
     wikitext_parse = requests.get(
-        f"https://en.wikipedia.org/w/api.php?action=parse&format=json&page={WIKI_PAGE}&prop=text&formatversion=2",
+        f"https://en.wikipedia.org/w/api.php?action=parse&format=json&page={WIKI_PAGE}&prop=wikitext&formatversion=2",
         headers=headers).json()['parse']
 
     with open(f"{WIKI_PAGE}.html", 'w', encoding='utf-8') as f:
         f.write(html_parse['text'])
 
     with open(f"{WIKI_PAGE}.wikitext", 'w') as f:
-        f.write(wikitext_parse['text'])
+        print(wikitext_parse)
+        f.write(wikitext_parse['wikitext'])
 
 
 if __name__ == "__main__":
