@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 requests = "*"
+wikitextparser = "*"
+setuptools = ">=36.2.1"
 python-dateutil = "*"
 
 [dev-packages]
