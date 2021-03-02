@@ -1,10 +1,27 @@
 import requests
 import datetime
 from dateutil import parser
+import wikitextparser as wtp
 
 WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.1"
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
+
+
+def get_lists(wikitext):
+    lists = {}
+    if isinstance(wikitext, str):
+        parsed = wtp.parse(wikitext)
+    else:
+        parsed = wikitext
+    sections = parsed.sections
+    for section in sections:
+        if len(section.get_lists()) > 0:
+            for l in section.get_lists():
+                lists[tuple(l.items)] = section.title
+
+    inv_lists = {v: k for k, v in lists.items()}
+    return inv_lists
 
 
 def main():
@@ -52,6 +69,13 @@ def main():
             f.write(wikitext_parse['wikitext'])
     else:
         print("Local files up to date.")
+        with open(f"{WIKI_PAGE}.wikitext", "r") as f:
+            wikitext = f.read()
+
+        lists = get_lists(wikitext)
+
+
+
 
 
 if __name__ == "__main__":
