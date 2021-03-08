@@ -5,9 +5,11 @@ name = "pypi"
 
 [packages]
 requests = "*"
+wikitextparser = "*"
+setuptools = ">=36.2.1"
 python-dateutil = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.9"
+python_version = "3.7"
