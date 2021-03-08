@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8303858f9a2ccab17f29ce2e2d3d8e35c08614eb031fb335dfb118b4efad0f7b"
+            "sha256": "a3f5c5eea8844e6b2efce9218c3d396c0cfb7b3ec430f35378954e0c553bd6f8"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -123,6 +123,14 @@
                 "sha256:c4d647b99872929fdb7bdcaa4fbe7f01413ed3d98077df798530e5b04f116c83"
             ],
             "version": "==0.2.5"
+        },
+        "wikiextractor": {
+            "hashes": [
+                "sha256:a6b5905eabae49aaa9a2f55726410f655103bdc6119d73b2b95fd36fb783cf23",
+                "sha256:cd91e892afd91a63ef27b41a2a3135a94622d6645e2375e0438d0c95cc4216c1"
+            ],
+            "index": "pypi",
+            "version": "==3.0.4"
         },
         "wikitextparser": {
             "hashes": [
