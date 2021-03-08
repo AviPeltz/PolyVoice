@@ -74,6 +74,10 @@ def main():
 
         lists = get_lists(wikitext)
 
+        tables = wtp.parse(wikitext).tables
+        for t in tables:
+            print(t.data())
+
 
 
 
