@@ -106,6 +106,10 @@ class WikiDaemon:
 
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
+
+        if question == "headers":
+            return "\n".join(self.get_paragraph_names())
+
         return "I'm a wiki object!"
 
     def get_paragraph_names(self):
@@ -139,6 +143,13 @@ def run_daemon(qa_pipe: Connection):
                 return
             except ValueError:
                 print("Answer was too large to send!")
+
+                # Make sure the caller isn't still waiting for an object
+                try:
+                    qa_pipe.send("")
+                except EOFError:
+                    qa_pipe.close()
+                    return
 
 
 def test_question(question):
