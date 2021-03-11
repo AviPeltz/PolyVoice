@@ -1,10 +1,68 @@
 import requests
 import datetime
 from dateutil import parser
+import wikitextparser as wtp
+import nltk
+import spacy
+from spacy import displacy
+from collections import Counter
+import en_core_web_sm
+import sys
+nlp = en_core_web_sm.load()
 
 WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.1"
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
+presidents_key = ' Directors and presidents<ref>{{cite web|title=Cal Poly Directors and Presidents|url=http://lib.calpoly.edu/universityarchives/history/presidents/|work=Robert E. Kennedy Library at Cal Poly San Luis Obispo}}</ref> '
+
+
+def get_lists(wikitext):
+    lists = {}
+    if isinstance(wikitext, str):
+        parsed = wtp.parse(wikitext)
+    else:
+        parsed = wikitext
+    sections = parsed.sections
+    for section in sections:
+        if len(section.get_lists()) > 0:
+            for l in section.get_lists():
+                lists[tuple(l.items)] = section.title
+
+    inv_lists = {v: k for k, v in lists.items()}
+    return inv_lists
+
+def answer_when_inquiry(inquiry, presidents):
+    doc = nlp(inquiry)
+    entities = [(entity.text, entity.label_) for entity in doc.ents]
+    entities = [name for name, type in entities if type == 'PERSON']
+    if len(entities) < 1:
+        print('No person entity found')
+        return 'N/A'
+    entity = entities[0]
+    print('PERSON ENTITY FOUND:', entity)
+    closest = find_closest_item(entity, presidents)
+    return closest
+
+def find_closest_key(key, dictionary):
+    keys = list(dictionary.keys())
+
+    most_similar, min_dist = None, None
+    for k in keys:
+        distance = nltk.edit_distance(key, k)
+        if most_similar is None or distance < min_dist:
+            most_similar, min_dist = k, distance
+
+    # print(most_similar)
+
+# lot = list of things
+def find_closest_item(key, lot):
+    most_similar, min_dist = None, None
+    for thing in lot:
+        distance = nltk.edit_distance(key, thing)
+        if most_similar is None or distance < min_dist:
+            most_similar, min_dist = thing, distance
+
+    return most_similar
 
 
 def main():
@@ -52,6 +110,24 @@ def main():
             f.write(wikitext_parse['wikitext'])
     else:
         print("Local files up to date.")
+        with open(f"{WIKI_PAGE}.wikitext", "r") as f:
+            wikitext = f.read()
+
+    lists = get_lists(wikitext)
+    presidents = lists[presidents_key]
+
+    tables = wtp.parse(wikitext).tables
+    inquiry = sys.argv[1]
+    person = answer_when_inquiry(inquiry, presidents)
+    print(person)
+
+    # key = find_closest_key('Directors and Presidents', lists)
+    # print(key)
+    # for t in tables:
+    #     print(t.data())
+
+
+
 
 
 if __name__ == "__main__":
