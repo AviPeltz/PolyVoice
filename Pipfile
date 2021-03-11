@@ -8,6 +8,10 @@ requests = "*"
 wikitextparser = "*"
 setuptools = ">=36.2.1"
 python-dateutil = "*"
+wikiextractor = "*"
+google = "*"
+google-cloud-dialogflow = "*"
+flask = "*"
 
 [dev-packages]
 
