@@ -115,6 +115,7 @@ class WikiDaemon:
 def run_daemon(qa_pipe: Connection):
     wiki_daemon = WikiDaemon(WIKI_PAGE)
     wiki_daemon.update_wiki_cache()
+    wiki_daemon.reload_spacy_docs()
     print("wiki_daemon: Child process started")
     next_wiki_update = time.time() + UPDATE_PERIOD_SECS
     while True:
@@ -125,8 +126,6 @@ def run_daemon(qa_pipe: Connection):
 
             if updated:
                 print("wiki_daemon: Got new revision, updating")
-                # Update spacy doc/nltk tokenization
-                pass
 
             next_wiki_update = now + UPDATE_PERIOD_SECS
 
