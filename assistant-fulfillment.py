@@ -1,6 +1,5 @@
 from multiprocessing import Pipe, Process
 from flask import Flask, request, make_response, jsonify
-from wiki_downloader import get_answer
 from wiki_daemon import run_daemon
 import atexit
 
