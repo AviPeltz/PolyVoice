@@ -8,6 +8,7 @@ from spacy import displacy
 from collections import Counter
 import en_core_web_sm
 import sys
+import wptools
 nlp = en_core_web_sm.load()
 
 WIKI_PAGE = "California_Polytechnic_State_University"
@@ -15,6 +16,13 @@ VERSION = "0.0.1"
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
 presidents_key = ' Directors and presidents<ref>{{cite web|title=Cal Poly Directors and Presidents|url=http://lib.calpoly.edu/universityarchives/history/presidents/|work=Robert E. Kennedy Library at Cal Poly San Luis Obispo}}</ref> '
 
+
+def get_infobox(page_name):
+    """
+    returns infobox dictionary
+    """
+    page = wptools.page(page_name).get_parse()
+    return page.data['infobox']
 
 def get_lists(wikitext):
     lists = {}
@@ -51,7 +59,7 @@ def find_closest_key(key, dictionary):
         distance = nltk.edit_distance(key, k)
         if most_similar is None or distance < min_dist:
             most_similar, min_dist = k, distance
-
+    return most_similar
     # print(most_similar)
 
 # lot = list of things
@@ -120,6 +128,11 @@ def main():
     inquiry = sys.argv[1]
     person = answer_when_inquiry(inquiry, presidents)
     print(person)
+
+    print("Checking Infobox for answer...")
+    ib = get_infobox(WIKI_PAGE)
+    best_key = find_closest_key(inquiry, ib)
+    print(ib[best_key])
 
     # key = find_closest_key('Directors and Presidents', lists)
     # print(key)
