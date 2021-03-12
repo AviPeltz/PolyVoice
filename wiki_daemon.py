@@ -106,6 +106,7 @@ class WikiDaemon:
 
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
+        # response to question that is sent through pipe is the output
         return "I'm a wiki object!"
 
     def get_paragraph_names(self):
