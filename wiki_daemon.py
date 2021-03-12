@@ -143,6 +143,7 @@ class WikiDaemon:
         if question == "headers":
             return "\n".join(self.get_paragraph_names())
 
+        # response to question that is sent through pipe is the output
         return "I'm a wiki object!"
 
     def get_paragraph_names(self):
