@@ -1,4 +1,6 @@
 import datetime
+import math
+import re
 import sys
 from multiprocessing.connection import Connection
 from typing import Dict, Optional
@@ -10,11 +12,12 @@ import time
 import wptools
 import json
 from spacy import Language
+from spacy_wordnet.wordnet_annotator import WordnetAnnotator
 
 from body_extractor import wikitext_docs_by_title
-from infobox_extractor import wikitext_infobox_clean
+from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
 
-SPACY_MODEL = "en_core_web_sm"
+SPACY_MODEL = "en_core_web_lg"
 WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
@@ -25,6 +28,8 @@ UPDATE_PERIOD_SECS = 3600
 
 def get_spacy_pipeline(base_model=SPACY_MODEL) -> Language:
     nlp = spacy.load(SPACY_MODEL)
+    nlp.add_pipe('spacy_wordnet', after='tagger', config={'lang': nlp.lang})
+    nlp.Defaults.stop_words |= {"cal", "poly", "polytechnic", "university"}
 
     return nlp
 
@@ -42,6 +47,7 @@ class WikiDaemon:
         # NLP persistent attributes
         self.body_docs = {}
         self.infobox = {}
+        self.infobox_numbers = {}
         # Store doc tables, info box here
 
     def get_online_page_revision(self) -> datetime:
@@ -132,13 +138,31 @@ class WikiDaemon:
 
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
-        self.infobox = wikitext_infobox_clean(f"{self.wiki_page}.infobox")
+        self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
+        self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
         # Load tables, info box here
 
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
 
         question_doc = self.nlp(question)
+
+        if re.match("how many|how much", question, re.IGNORECASE):
+            max_similarity = -math.inf
+            best_answer = ""
+
+            important_words = self.nlp(" ".join(token.text for token in question_doc if not token.is_stop))
+
+            for section in self.infobox_numbers:
+                similarity = important_words.similarity(section)
+
+                if similarity > max_similarity:
+                    max_similarity = similarity
+                    best_answer = self.infobox_numbers[section]
+
+                print(f"{section.text}/{important_words.text}: {similarity}")
+
+            return best_answer
 
         if question == "headers":
             return "\n".join(self.get_paragraph_names())
@@ -190,6 +214,8 @@ def test_question(question):
     wiki_daemon = WikiDaemon(WIKI_PAGE)
     wiki_daemon.update_wiki_cache()
     wiki_daemon.reload_spacy_docs()
+
+    print(list(wiki_daemon.body_docs.values())[0][0][0]._.wordnet.synsets())
 
     print(wiki_daemon.inquiry(question))
 

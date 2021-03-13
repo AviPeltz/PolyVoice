@@ -3,8 +3,23 @@ import sys
 from typing import Dict, List
 import re
 import spacy
-from spacy.tokens import Doc
+from spacy import Language
+from spacy.tokens import Doc, Span
 from wikiextractor.clean import clean_markup
+
+# Things that might return misleading information out of the infobox
+INFOBOX_BLACKLIST = re.compile(r"""
+image
+|logo
+|parent
+""", re.VERBOSE)
+
+INFOBOX_SECTION_TRANSFORMS = {
+    "postgrad": "postgrad postgraduate graduate students",
+    "undergrad": "undergrad undergraduate students",
+    "faculty": "faculty teachers",
+    "staff": "staff workers"
+}
 
 
 def wikitext_infobox_clean(infobox_file: str) -> Dict[str, str]:
@@ -14,13 +29,52 @@ def wikitext_infobox_clean(infobox_file: str) -> Dict[str, str]:
         infobox = json.load(f)
 
     for key, value in infobox.items():
-        clean_value = list(clean_markup(value))
+        if INFOBOX_BLACKLIST.search(key) is None:
+            clean_value = list(clean_markup(value))
 
-        if len(clean_value) > 0:
-            clean_infobox[key] = clean_value[0]
+            if len(clean_value) > 0:
+                key = INFOBOX_SECTION_TRANSFORMS.get(key, key)
+                clean_infobox[key] = clean_value[0]
 
     return clean_infobox
 
 
+def wikitext_infobox_docs(infobox_file: str, nlp: Language) -> Dict[Doc, Doc]:
+    infobox_docs = {}
+
+    infobox_strings = wikitext_infobox_clean(infobox_file)
+
+    for section, value in infobox_strings.items():
+        infobox_docs[nlp(section)] = nlp(value)
+
+    return infobox_docs
+
+
+def wikitext_infobox_numbers(infobox_docs: Dict[Doc, Doc]) -> Dict[Doc, Span]:
+    number_values = {}
+
+    for section, doc in infobox_docs.items():
+        for ent in doc.ents:
+            if re.fullmatch(r"CARDINAL|MONEY", ent.label_):
+                number_values[section] = ent
+
+    return number_values
+
+
+def main():
+    docs = wikitext_infobox_docs("California_Polytechnic_State_University.infobox", spacy.load("en_core_web_lg"))
+
+    number_values = {}
+
+    for section, doc in docs.items():
+        for ent in doc.ents:
+            if re.fullmatch(r"CARDINAL|MONEY", ent.label_):
+                number_values[section] = ent
+
+    for section in number_values:
+        for token in section:
+            print(token.lex.vector)
+
+
 if __name__ == "__main__":
-    print(wikitext_infobox_clean("California_Polytechnic_State_University.infobox"))
+    main()
