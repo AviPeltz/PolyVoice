@@ -169,11 +169,14 @@ class WikiDaemon:
                     best_word_similarity = None
 
                     for section_token in section:
-                        section_synset = lesk([token.text for token in section], section_token.text, 'n')
+                        # This should be cached in the object, but testing for now
+                        section_synset = lesk(["institution", "college", "university"] + [token.text for token in section], section_token.text, 'n')
 
                         if section_synset is not None:
 
                             similarity = q_synset.wup_similarity(section_synset)
+
+                            print(f"{q_synset}/{section_synset}: {similarity}")
 
                             if similarity is not None and (best_word_similarity is None or similarity > best_word_similarity):
                                 best_word_similarity = similarity
@@ -183,6 +186,8 @@ class WikiDaemon:
                             phrase_similarity = 1
 
                         phrase_similarity *= best_word_similarity
+
+                print(f"{section}/{question_doc}: {phrase_similarity}")
 
                 if phrase_similarity is not None and phrase_similarity > best_section_similarity:
                     best_section_similarity = phrase_similarity
