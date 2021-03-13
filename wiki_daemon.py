@@ -1,5 +1,4 @@
 import datetime
-import math
 import re
 import sys
 from multiprocessing.connection import Connection
@@ -12,10 +11,12 @@ import time
 import wptools
 import json
 from spacy import Language
-from spacy_wordnet.wordnet_annotator import WordnetAnnotator
-
+from nltk.wsd import lesk
 from body_extractor import wikitext_docs_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
+
+# Your IDE will probably tell you that you don't need this import. You need this import, trust me. -SF
+from spacy_wordnet.wordnet_annotator import WordnetAnnotator
 
 SPACY_MODEL = "en_core_web_lg"
 WIKI_PAGE = "California_Polytechnic_State_University"
@@ -28,8 +29,8 @@ UPDATE_PERIOD_SECS = 3600
 
 def get_spacy_pipeline(base_model=SPACY_MODEL) -> Language:
     nlp = spacy.load(SPACY_MODEL)
-    nlp.add_pipe('spacy_wordnet', after='tagger', config={'lang': nlp.lang})
     nlp.Defaults.stop_words |= {"cal", "poly", "polytechnic", "university"}
+    nlp.add_pipe('spacy_wordnet', after='tagger', config={'lang': 'en'})
 
     return nlp
 
@@ -146,21 +147,46 @@ class WikiDaemon:
         # Actual call to code for processing here
 
         question_doc = self.nlp(question)
+        question_strings = question.split()
+        question_synsets = []
+
+        for token in question_doc:
+            if token.is_stop:
+                question_synsets.append(None)
+            else:
+                question_synsets.append(lesk(question_strings, token.text))
 
         if re.match("how many|how much", question, re.IGNORECASE):
-            max_similarity = -math.inf
-            best_answer = ""
+            best_answer = "Nothing matched for numbers"
 
-            important_words = self.nlp(" ".join(token.text for token in question_doc if not token.is_stop))
+            best_section_similarity = 0
 
             for section in self.infobox_numbers:
-                similarity = important_words.similarity(section)
+                phrase_similarity = None
 
-                if similarity > max_similarity:
-                    max_similarity = similarity
+                for q_synset in [synset for synset in question_synsets if synset is not None]:
+
+                    best_word_similarity = None
+
+                    for section_token in section:
+                        section_synset = lesk([token.text for token in section], section_token.text, 'n')
+
+                        if section_synset is not None:
+
+                            similarity = q_synset.wup_similarity(section_synset)
+
+                            if similarity is not None and (best_word_similarity is None or similarity > best_word_similarity):
+                                best_word_similarity = similarity
+
+                    if best_word_similarity is not None:
+                        if phrase_similarity is None:
+                            phrase_similarity = 1
+
+                        phrase_similarity *= best_word_similarity
+
+                if phrase_similarity is not None and phrase_similarity > best_section_similarity:
+                    best_section_similarity = phrase_similarity
                     best_answer = self.infobox_numbers[section]
-
-                print(f"{section.text}/{important_words.text}: {similarity}")
 
             return best_answer
 
@@ -211,13 +237,23 @@ def run_daemon(qa_pipe: Connection):
 
 
 def test_question(question):
+    init_start_time = time.time()
     wiki_daemon = WikiDaemon(WIKI_PAGE)
+    init_end_time = time.time()
+    print(f"Init took {init_end_time - init_start_time} seconds")
+
+    preprocess_start_time = time.time()
     wiki_daemon.update_wiki_cache()
     wiki_daemon.reload_spacy_docs()
+    preprocess_end_time = time.time()
+    print(f"Document preprocesing took {preprocess_end_time - preprocess_start_time} seconds")
 
-    print(list(wiki_daemon.body_docs.values())[0][0][0]._.wordnet.synsets())
+    inquiry_start_time = time.time()
+    answer = wiki_daemon.inquiry(question)
+    inquiry_end_time = time.time()
+    print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
 
-    print(wiki_daemon.inquiry(question))
+    print(answer)
 
 
 # In case you want to test one-off questions
