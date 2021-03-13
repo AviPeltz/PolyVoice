@@ -1,4 +1,6 @@
 import datetime
+import math
+import re
 import sys
 from multiprocessing.connection import Connection
 from typing import Dict, Optional
@@ -10,6 +12,7 @@ import time
 import wptools
 import json
 from spacy import Language
+from spacy_wordnet.wordnet_annotator import WordnetAnnotator
 
 from body_extractor import wikitext_docs_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
@@ -25,6 +28,8 @@ UPDATE_PERIOD_SECS = 3600
 
 def get_spacy_pipeline(base_model=SPACY_MODEL) -> Language:
     nlp = spacy.load(SPACY_MODEL)
+    nlp.add_pipe('spacy_wordnet', after='tagger', config={'lang': nlp.lang})
+    nlp.Defaults.stop_words |= {"cal", "poly", "polytechnic", "university"}
 
     return nlp
 
