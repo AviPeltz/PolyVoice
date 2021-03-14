@@ -6,6 +6,8 @@ import nltk
 import spacy
 from spacy import displacy
 from collections import Counter
+import pandas as pd
+from bs4 import BeautifulSoup
 import en_core_web_sm
 import sys
 import wptools
@@ -38,6 +40,16 @@ def get_lists(wikitext):
 
     inv_lists = {v: k for k, v in lists.items()}
     return inv_lists
+
+def get_tables(html_parse):
+
+    soup = BeautifulSoup(html_parse, 'html.parser')
+    myTable = soup.find('table', {'class': "wikitable"})
+    df = pd.read_html(str(myTable))
+    # convert list to dataframe
+    df = pd.DataFrame(df[0])
+    print(df)
+
 
 def answer_when_inquiry(inquiry, presidents):
     doc = nlp(inquiry)
@@ -121,13 +133,18 @@ def main():
         with open(f"{WIKI_PAGE}.wikitext", "r") as f:
             wikitext = f.read()
 
+        with open(f"{WIKI_PAGE}.html", 'r', encoding='utf-8') as f:
+            html_file = f.read()
+
     lists = get_lists(wikitext)
     presidents = lists[presidents_key]
 
+    #print(lists)
     tables = wtp.parse(wikitext).tables
     inquiry = sys.argv[1]
     person = answer_when_inquiry(inquiry, presidents)
     print(person)
+    get_tables(html_file)
 
     print("Checking Infobox for answer...")
     ib = get_infobox(WIKI_PAGE)
@@ -138,8 +155,6 @@ def main():
     # print(key)
     # for t in tables:
     #     print(t.data())
-
-
 
 
 

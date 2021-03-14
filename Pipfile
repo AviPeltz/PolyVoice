@@ -9,12 +9,13 @@ wikitextparser = "*"
 setuptools = ">=36.2.1"
 python-dateutil = "*"
 wikiextractor = "*"
-google = "*"
-google-cloud-dialogflow = "*"
 flask = "*"
 nltk = "*"
-spacy = "*"
 en-core-web-sm = {file = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.0.0/en_core_web_sm-3.0.0-py3-none-any.whl"}
+spacy = "*"
+pandas = "*"
+textdistance = "*"
+spacy-wordnet = {file = "https://github.com/Hydroptix/spacy-wordnet/releases/download/0.0.5/spacy-wordnet-0.0.5.tar.gz"}
 
 [dev-packages]
 
