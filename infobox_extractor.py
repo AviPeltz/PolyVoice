@@ -15,10 +15,9 @@ image
 """, re.VERBOSE)
 
 INFOBOX_SECTION_TRANSFORMS = {
-    "postgrad": "postgrad postgraduate graduate students",
-    "undergrad": "undergrad undergraduate students",
-    "faculty": "faculty teachers",
-    "staff": "staff workers"
+    "postgrad": "postgraduate students",
+    "undergrad": "undergraduate students",
+    "staff": "staff"
 }
 
 
