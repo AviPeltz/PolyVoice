@@ -2,7 +2,7 @@ import datetime
 import re
 import sys
 from multiprocessing.connection import Connection
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Tuple
 
 import requests
 import spacy
@@ -10,12 +10,17 @@ from dateutil import parser as date_parser
 import time
 import wptools
 import json
+
+from nltk.corpus.reader import Synset
 from spacy import Language
 from nltk.wsd import lesk
+from spacy.tokens.doc import Doc
+
 from body_extractor import wikitext_docs_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
+from paragraph_categorizer import get_topic_dict
 
-# Your IDE will probably tell you that you don't need this import. You need this import, trust me. -SF
+# Your IDE will probably tell you that you don't need this import. You need this import. -SF
 from spacy_wordnet.wordnet_annotator import WordnetAnnotator
 
 SPACY_MODEL = "en_core_web_lg"
@@ -47,6 +52,8 @@ class WikiDaemon:
 
         # NLP persistent attributes
         self.body_docs = {}
+        self.body_topics = {}
+
         self.infobox = {}
         self.infobox_numbers = {}
         # Store doc tables, info box here
@@ -137,11 +144,87 @@ class WikiDaemon:
         else:
             return False
 
+    def get_body_topics(self):
+        topics_dict = {}
+
+        for header, paragraphs in self.body_docs.items():
+            topics_list = []
+
+            for paragraph in paragraphs:
+                topics_list.append(get_topic_dict(paragraph))
+
+            topics_dict[header] = topics_list
+
+        return topics_dict
+
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
         self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
         self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
         # Load tables, info box here
+
+        self.body_topics = self.get_body_topics()
+
+    def get_infobox_answer(self, question_synsets: List[Synset]):
+        best_answer = "Nothing matched for numbers"
+
+        best_section_similarity = 0
+
+        for section in self.infobox_numbers:
+            phrase_similarity = None
+
+            for q_synset in [synset for synset in question_synsets if synset is not None]:
+
+                best_word_similarity = None
+
+                for section_token in section:
+                    # This should be cached in the object, but testing for now
+                    section_synset = lesk(
+                        ["institution", "college", "university"] + [token.text for token in section],
+                        section_token.text, 'n')
+
+                    if section_synset is not None:
+
+                        similarity = q_synset.wup_similarity(section_synset)
+
+                        if similarity is not None and (
+                                best_word_similarity is None or similarity > best_word_similarity):
+                            best_word_similarity = similarity
+
+                if best_word_similarity is not None:
+                    if phrase_similarity is None:
+                        phrase_similarity = 1
+
+                    phrase_similarity *= best_word_similarity
+
+            if phrase_similarity is not None and phrase_similarity > best_section_similarity:
+                best_section_similarity = phrase_similarity
+                best_answer = self.infobox_numbers[section]
+
+        return best_answer
+
+    def get_weighted_wordnet_score(self, concept: Synset, topic_dict: Dict[Synset, int], distance: int = 1) -> float:
+
+        # print(f"{' ' * (distance - 1)}looking for {concept.name()}")
+        if concept in topic_dict:
+            return topic_dict[concept] / (distance * distance)
+
+        else:
+            parent_scores = []
+
+            parents = concept.hypernyms()
+
+            # If we get results that are too general, cut off the search so we don't get bad results
+            for parent in (parent for parent in concept.hypernyms() if parent.max_depth() > 4):
+                parent_scores.append(self.get_weighted_wordnet_score(parent, topic_dict, distance + 1))
+
+            # print((" " * (distance - 1)) + parent_scores.__str__())
+
+            if len(parent_scores) > 0:
+                return min(parent_scores)
+            else:
+                # If the concepts are different parts of speech this might happen
+                return 0
 
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
@@ -154,46 +237,35 @@ class WikiDaemon:
             if token.is_stop:
                 question_synsets.append(None)
             else:
-                question_synsets.append(lesk(question_strings, token.text))
+                if len(token._.wordnet.synsets()) > 0:
+                    question_synsets.append(token._.wordnet.synsets()[0])
 
+
+        # Rudimentary check for accessing info box
         if re.match("how many|how much", question, re.IGNORECASE):
-            best_answer = "Nothing matched for numbers"
+             return self.get_infobox_answer(question_synsets)
 
-            best_section_similarity = 0
+        paragraph_scores: List[Tuple[float, Doc]] = []
+        # No perfect concept matches, use distance scoring
+        for header, paragraphs_topics in self.body_topics.items():
+            # print(header)
+            for i, paragraph_topics in enumerate(paragraphs_topics):
+                score = 0
+                for q_synset in (synset for synset in question_synsets if synset is not None):
+                    # print(f"Looking for {q_synset.name()} in {paragraph_topics}")
+                    score += self.get_weighted_wordnet_score(q_synset, paragraph_topics)
+                    # print(score)
 
-            for section in self.infobox_numbers:
-                phrase_similarity = None
+                if score > 0:
+                    paragraph_scores.append((score, self.body_docs[header][i]))
 
-                for q_synset in [synset for synset in question_synsets if synset is not None]:
+        if len(paragraph_scores) > 0:
+            paragraph_scores.sort(key=lambda item: item[0], reverse=True)
 
-                    best_word_similarity = None
+            # Feed paragraphs into the neural net here
+            # print(paragraph_scores)
 
-                    for section_token in section:
-                        # This should be cached in the object, but testing for now
-                        section_synset = lesk(["institution", "college", "university"] + [token.text for token in section], section_token.text, 'n')
-
-                        if section_synset is not None:
-
-                            similarity = q_synset.wup_similarity(section_synset)
-
-                            print(f"{q_synset}/{section_synset}: {similarity}")
-
-                            if similarity is not None and (best_word_similarity is None or similarity > best_word_similarity):
-                                best_word_similarity = similarity
-
-                    if best_word_similarity is not None:
-                        if phrase_similarity is None:
-                            phrase_similarity = 1
-
-                        phrase_similarity *= best_word_similarity
-
-                print(f"{section}/{question_doc}: {phrase_similarity}")
-
-                if phrase_similarity is not None and phrase_similarity > best_section_similarity:
-                    best_section_similarity = phrase_similarity
-                    best_answer = self.infobox_numbers[section]
-
-            return best_answer
+            return paragraph_scores[0][1].text
 
         if question == "headers":
             return "\n".join(self.get_paragraph_names())
@@ -245,7 +317,7 @@ def test_question(question):
     init_start_time = time.time()
     wiki_daemon = WikiDaemon(WIKI_PAGE)
     init_end_time = time.time()
-    print(f"Init took {init_end_time - init_start_time} seconds")
+    print(f"Pipeline init took {init_end_time - init_start_time} seconds")
 
     preprocess_start_time = time.time()
     wiki_daemon.update_wiki_cache()
