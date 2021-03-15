@@ -81,6 +81,12 @@ def get_president(presidents, year):
     return f"No president found for year {year}"
 
 
+def get_all_colleges(colleges):
+    colleges = ', '.join(colleges)
+    cindex = colleges.rfind(',')
+    colleges = colleges[:cindex+1] + ' and' + colleges[cindex+1:]
+    return f"Cal Poly's colleges are: {colleges}"
+
 def get_some_items(items, keyword):
     choices = random.sample(range(0, len(items)), 3)
     return f'Some {keyword} are {items[choices[0]]}, {items[choices[1]]}, and {items[choices[2]]}'
@@ -108,7 +114,7 @@ def try_list_question(lists, question_doc):
     timeline_pres = {'how', 'president'}
     who_pres = {'who', 'was', 'president'}
     what = {'what', 'are', 'some'}
-    who_alum = {'who', 'are', 'some', 'alumni'}
+    who_alum = {'who', 'are', 'some'}
     if (tokens & when_pres) == when_pres and len(entities) == 1:
         return get_president_timeline(lists[pres_key], entities[0])
     elif (tokens & timeline_pres) == timeline_pres and len(entities) == 1:
@@ -118,11 +124,14 @@ def try_list_question(lists, question_doc):
         return get_president(lists[pres_key], year)
     elif (tokens & what) == what and ('colleges' in tokens or 'schools' in tokens):
         return get_some_items(lists[college_key], 'colleges')
+    elif ((tokens & {'what', 'colleges', 'poly', 'have'}) == {'what', 'colleges', 'poly', 'have'}) or\
+        ((tokens & {'what', 'are', 'the', 'colleges'}) == {'what', 'are', 'the', 'colleges'}):
+        return get_all_colleges(lists[college_key])
     elif (tokens & what) == what and ('fraternities' in tokens):
         return get_some_items(lists[greek_key], 'fraternities')
     elif (tokens & what) == what and ('alumni' in tokens):
         return get_some_items(lists[alum_key], 'notable alumni')
-    elif (tokens & who_alum) == who_alum:
+    elif (tokens & who_alum) == who_alum and ('alumni' in tokens or 'people' in tokens):
         return get_some_items(lists[alum_key], 'notable alumni')
     else:
         return None
