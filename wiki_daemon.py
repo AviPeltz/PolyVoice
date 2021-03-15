@@ -44,7 +44,6 @@ def get_spacy_pipeline(base_model=SPACY_MODEL) -> Language:
 
     return nlp
 
-
 class WikiDaemon:
 
     def __init__(self, wiki_page, spacy_model=SPACY_MODEL):
@@ -168,7 +167,7 @@ class WikiDaemon:
 
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
-        self.body_docs['Tables'] = [self.nlp()]
+        # self.body_docs['Tables'] = [self.nlp()]
         self.body_topics = self.get_body_topics()
         self.body_bags_of_words = wikitext_bag_by_title(self.body_docs)
 
@@ -323,7 +322,8 @@ class WikiDaemon:
         infobox_result = self.transformer.answer_question(question, wikibox_to_para(self.infobox))
         # print(f"infobox result: answer: {infobox_result['answer']}, score: {infobox_result['score']}")
         if infobox_result['score'] >= INFOBOX_CONF_CUTOFF:
-            return infobox_result['answer']
+            return self.get_sentence_from_char_idx(self.nlp(wikibox_to_para(self.infobox)), infobox_result['start']).text
+            # return infobox_result['answer']
 
         paragraph_scores: List[Tuple[float, Doc]] = []
         # No perfect concept matches, use distance scoring
