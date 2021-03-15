@@ -1,5 +1,5 @@
 import sys
-from typing import Dict, List
+from typing import Dict, List, Set
 import re
 import spacy
 from spacy.tokens import Doc
@@ -34,6 +34,16 @@ def wikitext_docs_by_title(wiki_text: str, nlp: spacy.Language) -> Dict[str, Lis
 
     return docs
 
+
+def wikitext_bag_by_title(wiki_docs: Dict[str, List[Doc]]) -> Dict[str, List[Set[str]]]:
+    bags: Dict[str, List[Set[str]]] = {}
+
+    for header, paragraphs in wiki_docs.items():
+        bags[header] = []
+        for paragraph in paragraphs:
+            bags[header].append(set(token.text.lower() for token in paragraph if not token.is_stop))
+
+    return bags
 
 if __name__ == "__main__":
     print(wikitext_docs_by_title(sys.argv[1], spacy.load("en_core_web_sm")))
