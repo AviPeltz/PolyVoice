@@ -30,6 +30,7 @@ VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
 ANSWER_CONF_CUTOFF = 0.30
+BOOLEAN_ANSWER_CONF_THRESH = 0.2
 
 UPDATE_PERIOD_SECS = 3600
 
@@ -50,7 +51,7 @@ class WikiDaemon:
         self.last_change_date = None
 
         # NLP pipeline
-        self.nlp = get_spacy_pipeline()
+        self.nlp = get_spacy_pipeline(spacy_model)
 
         # Transformer pipeline
         self.transformer = QAModel()
@@ -238,6 +239,9 @@ class WikiDaemon:
         question_strings = question.split()
         question_synsets = []
 
+        # Detect yes/no questions
+        boolean_question = question_doc[0].pos_ == "AUX"
+
         for token in question_doc:
             if token.is_stop:
                 question_synsets.append(None)
@@ -281,8 +285,12 @@ class WikiDaemon:
                     best_answer_score = result['score']
                     best_answer = result['answer']
 
-            return best_answer if best_answer is not None and best_answer_score > ANSWER_CONF_CUTOFF\
-                else "Sorry, not sure about that one."
+            if boolean_question:
+                return "Yes" if best_answer_score > BOOLEAN_ANSWER_CONF_THRESH else "No"
+
+            else:
+                return best_answer if best_answer is not None and best_answer_score > ANSWER_CONF_CUTOFF\
+                    else "Sorry, not sure about that one."
 
         if question == "headers":
             return "\n".join(self.get_paragraph_names())
