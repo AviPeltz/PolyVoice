@@ -41,15 +41,40 @@ def get_lists(wikitext):
     inv_lists = {v: k for k, v in lists.items()}
     return inv_lists
 
+
+
+def print_paragraphs(paragraphs):
+    for par in paragraphs:
+        print(par)
+
 def get_tables(html_parse):
 
     soup = BeautifulSoup(html_parse, 'html.parser')
     myTable = soup.find('table', {'class': "wikitable"})
     df = pd.read_html(str(myTable))
-    # convert list to dataframe
-    df = pd.DataFrame(df[0])
-    #print(df)
-    return(df)
+
+    #print(df[0].values[0,1])
+    years = [2018, 2017, 2016, 2015, 2014, 2013]
+    applicant_sen = ""
+    admits_sen = ""
+    perc_admit_sen = ""
+    enrolled_sen = ""
+    gpa_sen = ""
+    ACT_sen = ""
+    SAT_sen = ""
+    for i in range(len(years)):
+        applicant_sen += " In "+ str(years[i]) + " there were " + str(df[0].values[0,i+1]) + " applicants to Cal Poly."
+        admits_sen += " In " + str(years[i]) + " there were " + str(df[0].values[1, i+1]) + " admitted students to Cal Poly."
+        perc_admit_sen += " In " + str(years[i]) + " the percent of admitted students to Cal Poly was " + str(df[0].values[2, i+1]) + "%."
+        enrolled_sen += " In " + str(years[i]) + " there were " + str(df[0].values[3, i+1]) + " new students who enrolled at Cal Poly."
+        gpa_sen += " In " + str(years[i]) + " entering students had an average GPA of " + str(df[0].values[4, i+1]) + "."
+        ACT_sen += " In " + str(years[i]) + " entering students had an average ACT Composite of " + str(df[0].values[5, i+1]) + "."
+        SAT_sen += " In " + str(years[i]) + " entering students had an average SAT Composite of " + str(df[0].values[6, i+1]) + "."
+    paragraphs = [applicant_sen, admits_sen, perc_admit_sen, enrolled_sen, gpa_sen, ACT_sen, SAT_sen]
+    print_paragraphs(paragraphs)
+    return paragraphs
+
+
 
 
 def answer_when_inquiry(inquiry, presidents):
@@ -145,7 +170,8 @@ def main():
     inquiry = sys.argv[1]
     person = answer_when_inquiry(inquiry, presidents)
     print(person)
-    #get_tables(html_file)
+    get_tables(html_file)
+
 
     print("Checking Infobox for answer...")
     ib = get_infobox(WIKI_PAGE)

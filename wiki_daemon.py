@@ -10,6 +10,8 @@ from dateutil import parser as date_parser
 import time
 import wptools
 import json
+import pandas as pd
+from bs4 import BeautifulSoup
 
 from nltk.corpus.reader import Synset
 from spacy import Language
@@ -26,7 +28,7 @@ from real_weapon import QAModel
 # Your IDE will probably tell you that you don't need this import. You need this import. -SF
 from spacy_wordnet.wordnet_annotator import WordnetAnnotator
 
-SPACY_MODEL = "en_core_web_lg"
+SPACY_MODEL = "en_core_web_sm"
 WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
@@ -166,14 +168,54 @@ class WikiDaemon:
 
         return topics_dict
 
+    #def print_paragraphs(paragraphs):
+    #    for par in paragraphs:
+    #        print(par)
+
+    def get_tables(self, filename):
+        with open(f"{filename}.html", 'r', encoding='utf-8') as f:
+            html_parse = f.read()
+        soup = BeautifulSoup(html_parse, 'html.parser')
+        myTable = soup.find('table', {'class': "wikitable"})
+        df = pd.read_html(str(myTable))
+
+        # print(df[0].values[0,1])
+        years = [2018, 2017, 2016, 2015, 2014, 2013]
+        applicant_sen = ""
+        admits_sen = ""
+        perc_admit_sen = ""
+        enrolled_sen = ""
+        gpa_sen = ""
+        ACT_sen = ""
+        SAT_sen = ""
+        for i in range(len(years)):
+            applicant_sen += " In " + str(years[i]) + " there were " + str(
+                df[0].values[0, i + 1]) + " applicants to Cal Poly."
+            admits_sen += " In " + str(years[i]) + " there were " + str(
+                df[0].values[1, i + 1]) + " admitted students to Cal Poly."
+            perc_admit_sen += " In " + str(years[i]) + " the percentage of admitted students to Cal Poly was " + str(
+                df[0].values[2, i + 1]) + "%."
+            enrolled_sen += " In " + str(years[i]) + " there were " + str(
+                df[0].values[3, i + 1]) + " new students who enrolled at Cal Poly."
+            gpa_sen += " In " + str(years[i]) + " entering students had an average GPA of " + str(
+                df[0].values[4, i + 1]) + "."
+            ACT_sen += " In " + str(years[i]) + " entering students had an average ACT Composite of " + str(
+                df[0].values[5, i + 1]) + "."
+            SAT_sen += " In " + str(years[i]) + " entering students had an average SAT Composite of " + str(
+                df[0].values[6, i + 1]) + "."
+        paragraphs = [applicant_sen, admits_sen, perc_admit_sen, enrolled_sen, gpa_sen, ACT_sen, SAT_sen]
+        #print_paragraphs(paragraphs)
+        return paragraphs
+
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
-        # self.body_docs['Tables'] = [self.nlp()]
+        self.body_docs['Tables'] = list(map(lambda p: self.nlp(p), self.get_tables(self.wiki_page)))
         self.body_topics = self.get_body_topics()
         self.body_bags_of_words = wikitext_bag_by_title(self.body_docs)
         self.lists = get_wikitext_lists(f"{self.wiki_page}.wikitext")
         self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
         self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
+
 
     def parse_infobox_question(self, question):
         doc = self.nlp(question)
@@ -285,6 +327,7 @@ class WikiDaemon:
         question = re.sub(r"calpoly", "Cal Poly", question)
         if not question.endswith('?'):
             question += '?'
+        question = question[0].upper() + question[1:]
         return question
 
     def get_sentence_from_char_idx(self, doc: Doc, char_idx) -> Optional[Span]:
@@ -425,7 +468,7 @@ def run_daemon(qa_pipe: Connection):
                     return
 
 
-def test_question(question):
+def test_question(questions):
     init_start_time = time.time()
     wiki_daemon = WikiDaemon(WIKI_PAGE)
     init_end_time = time.time()
@@ -437,15 +480,16 @@ def test_question(question):
     preprocess_end_time = time.time()
     print(f"Document preprocesing took {preprocess_end_time - preprocess_start_time} seconds")
 
-    inquiry_start_time = time.time()
-    answer = wiki_daemon.inquiry(question)
-    inquiry_end_time = time.time()
-    print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
+    for q in questions:
+        inquiry_start_time = time.time()
+        answer = wiki_daemon.inquiry(q)
+        inquiry_end_time = time.time()
+        print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
 
-    print(answer)
+        print(answer)
 
 
 # In case you want to test one-off questions
 if __name__ == "__main__":
-    test_question(sys.argv[1])
+    test_question(sys.argv[1:])
 
