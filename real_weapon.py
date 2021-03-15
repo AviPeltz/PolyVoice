@@ -4,7 +4,7 @@ from transformers import pipeline
 class QAModel:
 
     def __init__(self):
-        self.nlp = pipeline("question-answering", model="deepset/electra-base-squad2")
+        self.nlp = pipeline("question-answering", model="deepset/roberta-base-squad2")
 
     def answer_question(self, question: str, context: str):
         result = self.nlp(question=question, context=context)
