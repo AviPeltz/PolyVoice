@@ -16,6 +16,7 @@ spacy = "*"
 pandas = "*"
 textdistance = "*"
 spacy-wordnet = {file = "https://github.com/Hydroptix/spacy-wordnet/releases/download/0.0.5/spacy-wordnet-0.0.5.tar.gz"}
+transformers = "*"
 
 [dev-packages]
 

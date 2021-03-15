@@ -19,6 +19,7 @@ from spacy.tokens.doc import Doc
 from body_extractor import wikitext_docs_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
 from paragraph_categorizer import get_topic_dict
+from real_weapon import QAModel
 
 # Your IDE will probably tell you that you don't need this import. You need this import. -SF
 from spacy_wordnet.wordnet_annotator import WordnetAnnotator
@@ -28,6 +29,7 @@ WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
+ANSWER_CONF_CUTOFF = 0.30
 
 UPDATE_PERIOD_SECS = 3600
 
@@ -49,6 +51,9 @@ class WikiDaemon:
 
         # NLP pipeline
         self.nlp = get_spacy_pipeline()
+
+        # Transformer pipeline
+        self.transformer = QAModel()
 
         # NLP persistent attributes
         self.body_docs = {}
@@ -265,7 +270,19 @@ class WikiDaemon:
             # Feed paragraphs into the neural net here
             # print(paragraph_scores)
 
-            return paragraph_scores[0][1].text
+            # return paragraph_scores[0][1].text
+            results = list(map(lambda p: self.transformer.answer_question(question, p[1].text), paragraph_scores[0:3]))
+
+            best_answer = None
+            best_answer_score = 0
+            for result in results:
+                print(f"({result['answer']}): {result['score']}")
+                if result['score'] > best_answer_score:
+                    best_answer_score = result['score']
+                    best_answer = result['answer']
+
+            return best_answer if best_answer is not None and best_answer_score > ANSWER_CONF_CUTOFF\
+                else "Sorry, not sure about that one."
 
         if question == "headers":
             return "\n".join(self.get_paragraph_names())
