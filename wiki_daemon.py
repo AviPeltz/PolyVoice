@@ -15,6 +15,7 @@ from nltk.corpus.reader import Synset
 from spacy import Language
 from nltk.wsd import lesk
 from spacy.tokens.doc import Doc
+from spacy.tokens.span import Span
 
 from body_extractor import wikitext_docs_by_title, wikitext_bag_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers, wikibox_to_para
@@ -29,8 +30,8 @@ WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
-ANSWER_CONF_CUTOFF = 0.30
-BOOLEAN_ANSWER_CONF_THRESH = 0.2
+ANSWER_CONF_CUTOFF = 0.20
+BOOLEAN_ANSWER_CONF_THRESH = 0.20
 BAG_OF_WORDS_CONF_CUTOFF = 0.13
 INFOBOX_CONF_CUTOFF = 0.44
 UPDATE_PERIOD_SECS = 3600
@@ -167,6 +168,7 @@ class WikiDaemon:
 
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
+        self.body_docs['Tables'] = [self.nlp()]
         self.body_topics = self.get_body_topics()
         self.body_bags_of_words = wikitext_bag_by_title(self.body_docs)
 
@@ -279,8 +281,27 @@ class WikiDaemon:
                 # If the concepts are different parts of speech this might happen
                 return 0
 
+    def preprocess_question_string(self, question: str) -> str:
+        question = re.sub(r"calpoly", "Cal Poly", question)
+        if not question.endswith('?'):
+            question += '?'
+        return question
+
+    def get_sentence_from_char_idx(self, doc: Doc, char_idx) -> Optional[Span]:
+        current_location = 0
+        for sent in doc.sents:
+            for token in sent:
+                if len(token.text_with_ws) + current_location > char_idx:
+                    return sent
+                current_location += len(token.text_with_ws)
+        return None
+
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
+
+        question = self.preprocess_question_string(question)
+
+        print(question)
 
         question_doc = self.nlp(question)
         question_synsets = []
@@ -337,19 +358,21 @@ class WikiDaemon:
             # print(paragraph_scores)
 
             # return paragraph_scores[0][1].text
-            results = list(map(lambda p: self.transformer.answer_question(question, p[1].text), paragraph_scores[0:3]))
+            results = list(map(lambda p: (self.transformer.answer_question(question, p[1].text), p[1]), paragraph_scores[0:3]))
 
             best_answer = None
             best_answer_score = 0
-            for result in results:
+            for result, paragraph in results:
+                print(f"({result['answer']}): {result['score']}")
                 if result['score'] > best_answer_score:
                     best_answer_score = result['score']
-                    best_answer = result['answer']
+                    best_answer = self.get_sentence_from_char_idx(paragraph, result['start']).text
 
             if boolean_question:
                 return "Yes" if best_answer_score > BOOLEAN_ANSWER_CONF_THRESH else "No"
 
-            elif best_answer_score > ANSWER_CONF_CUTOFF or (bag_of_words_fallback and best_answer_score > BAG_OF_WORDS_CONF_CUTOFF):
+            elif best_answer_score > ANSWER_CONF_CUTOFF or (
+                    bag_of_words_fallback and best_answer_score > BAG_OF_WORDS_CONF_CUTOFF):
                 return best_answer
 
         # None of our cases figured out an answer
