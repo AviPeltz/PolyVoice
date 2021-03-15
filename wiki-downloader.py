@@ -48,7 +48,8 @@ def get_tables(html_parse):
     df = pd.read_html(str(myTable))
     # convert list to dataframe
     df = pd.DataFrame(df[0])
-    print(df)
+    #print(df)
+    return(df)
 
 
 def answer_when_inquiry(inquiry, presidents):
@@ -144,7 +145,7 @@ def main():
     inquiry = sys.argv[1]
     person = answer_when_inquiry(inquiry, presidents)
     print(person)
-    get_tables(html_file)
+    #get_tables(html_file)
 
     print("Checking Infobox for answer...")
     ib = get_infobox(WIKI_PAGE)
