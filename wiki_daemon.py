@@ -16,9 +16,10 @@ from spacy import Language
 from nltk.wsd import lesk
 from spacy.tokens.doc import Doc
 
-from body_extractor import wikitext_docs_by_title
+from body_extractor import wikitext_docs_by_title, wikitext_bag_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
 from paragraph_categorizer import get_topic_dict
+from real_weapon import QAModel
 
 # Your IDE will probably tell you that you don't need this import. You need this import. -SF
 from spacy_wordnet.wordnet_annotator import WordnetAnnotator
@@ -28,6 +29,9 @@ WIKI_PAGE = "California_Polytechnic_State_University"
 VERSION = "0.0.2"
 HEADERS = {'accept-encoding': 'gzip', 'User-Agent': f"Poly Assistant/{VERSION}"}
 STORED_DATE_FORMAT = "%Y-%m-%d %H:%M:%S%z"
+ANSWER_CONF_CUTOFF = 0.30
+BOOLEAN_ANSWER_CONF_THRESH = 0.2
+BAG_OF_WORDS_CONF_CUTOFF = 0.13
 
 UPDATE_PERIOD_SECS = 3600
 
@@ -48,11 +52,15 @@ class WikiDaemon:
         self.last_change_date = None
 
         # NLP pipeline
-        self.nlp = get_spacy_pipeline()
+        self.nlp = get_spacy_pipeline(spacy_model)
+
+        # Transformer pipeline
+        self.transformer = QAModel()
 
         # NLP persistent attributes
         self.body_docs = {}
         self.body_topics = {}
+        self.body_bags_of_words = {}
 
         self.infobox = {}
         self.infobox_numbers = {}
@@ -159,11 +167,11 @@ class WikiDaemon:
 
     def reload_spacy_docs(self):
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
+        self.body_topics = self.get_body_topics()
+        self.body_bags_of_words = wikitext_bag_by_title(self.body_docs)
+
         self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
         self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
-        # Load tables, info box here
-
-        self.body_topics = self.get_body_topics()
 
     def get_infobox_answer(self, question_synsets: List[Synset]):
         best_answer = "Nothing matched for numbers"
@@ -226,24 +234,36 @@ class WikiDaemon:
                 # If the concepts are different parts of speech this might happen
                 return 0
 
+    def preprocess_question_string(self, question: str) -> str:
+        question = re.sub(r"calpoly", "Cal Poly", question)
+        if not question.endswith('?'):
+            question += '?'
+        return question
+
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
 
+        question = self.preprocess_question_string(question)
+
         question_doc = self.nlp(question)
-        question_strings = question.split()
         question_synsets = []
+        question_bag_of_words = set()
+
+        # Detect yes/no questions
+        boolean_question = question_doc[0].pos_ == "AUX"
 
         for token in question_doc:
             if token.is_stop:
                 question_synsets.append(None)
             else:
+                question_bag_of_words.add(token.text.lower())
+
                 if len(token._.wordnet.synsets()) > 0:
                     question_synsets.append(token._.wordnet.synsets()[0])
 
-
         # Rudimentary check for accessing info box
-        if re.match("how many|how much", question, re.IGNORECASE):
-             return self.get_infobox_answer(question_synsets)
+        # if re.match("how many|how much", question, re.IGNORECASE):
+        #     return self.get_infobox_answer(question_synsets)
 
         paragraph_scores: List[Tuple[float, Doc]] = []
         # No perfect concept matches, use distance scoring
@@ -259,19 +279,44 @@ class WikiDaemon:
                 if score > 0:
                     paragraph_scores.append((score, self.body_docs[header][i]))
 
+        bag_of_words_fallback = False
+        # Wordnet synset matching didn't find anything, use bag of words approach
+        if len(paragraph_scores) <= 0:
+            bag_of_words_fallback = True
+            for header, paragraph_bags in self.body_bags_of_words.items():
+
+                for i, paragraph_bag in enumerate(paragraph_bags):
+                    score = len(paragraph_bag & question_bag_of_words)
+
+                    if score > 0:
+                        paragraph_scores.append((score, self.body_docs[header][i]))
+
         if len(paragraph_scores) > 0:
             paragraph_scores.sort(key=lambda item: item[0], reverse=True)
 
             # Feed paragraphs into the neural net here
             # print(paragraph_scores)
 
-            return paragraph_scores[0][1].text
+            # return paragraph_scores[0][1].text
+            results = list(map(lambda p: self.transformer.answer_question(question, p[1].text), paragraph_scores[0:3]))
 
-        if question == "headers":
-            return "\n".join(self.get_paragraph_names())
+            best_answer = None
+            best_answer_score = 0
+            for result in results:
+                # print(f"({result['answer']}): {result['score']}")
+                if result['score'] > best_answer_score:
+                    best_answer_score = result['score']
+                    best_answer = result['answer']
 
-        # response to question that is sent through pipe is the output
-        return "I'm a wiki object!"
+            if boolean_question:
+                return "Yes" if best_answer_score > BOOLEAN_ANSWER_CONF_THRESH else "No"
+
+            elif best_answer_score > ANSWER_CONF_CUTOFF or (
+                    bag_of_words_fallback and best_answer_score > BAG_OF_WORDS_CONF_CUTOFF):
+                return best_answer
+
+        # None of our cases figured out an answer
+        return "Sorry, not sure about that one."
 
     def get_paragraph_names(self):
         return list(self.body_docs.keys())
