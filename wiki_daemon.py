@@ -238,7 +238,6 @@ class WikiDaemon:
         # Actual call to code for processing here
 
         question_doc = self.nlp(question)
-        question_strings = question.split()
         question_synsets = []
         question_bag_of_words = set()
 
