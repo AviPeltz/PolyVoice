@@ -1,7 +1,7 @@
 from transformers import pipeline
 
 nlp = pipeline('question-answering')
-question = "How much land does Cal Poly own?"
+question = "What is Cal Poly's teaching philosophy?"
 context = r"""
     Cal Poly has one of the largest college campuses in the United States.
     [22] It owns 9,178 acres and is the second largest land-holding university
