@@ -61,6 +61,7 @@ def wikitext_infobox_numbers(infobox_docs: Dict[Doc, Doc]) -> Dict[Doc, Span]:
 
 
 def main():
+    print(wikitext_infobox_clean("California_Polytechnic_State_University.infobox"))
     docs = wikitext_infobox_docs("California_Polytechnic_State_University.infobox", spacy.load("en_core_web_lg"))
 
     number_values = {}
@@ -70,9 +71,11 @@ def main():
             if re.fullmatch(r"CARDINAL|MONEY", ent.label_):
                 number_values[section] = ent
 
-    for section in number_values:
+    """for section in number_values:
         for token in section:
-            print(token.lex.vector)
+            print(token.lex.vector)"""
+    print(docs)
+    print(number_values)
 
 
 if __name__ == "__main__":

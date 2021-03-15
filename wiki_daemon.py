@@ -170,6 +170,11 @@ class WikiDaemon:
 
         self.body_topics = self.get_body_topics()
 
+    def parse_infobox_question(self, question):
+        doc = self.nlp(question)
+        for token in doc:
+            print(token.text, token.pos_)
+
     def get_infobox_answer(self, question_synsets: List[Synset]):
         best_answer = "Nothing matched for numbers"
 
@@ -348,8 +353,11 @@ def test_question(question):
     print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
 
     print(answer)
+    print("john stuff:")
+    wiki_daemon.parse_infobox_question("Who is the president of Cal Poly? What is Cal Poly’s motto? What is Cal Poly’s motto in english? What type of school is Cal Poly? When was Cal Poly established? What are Cal Poly’s academic affiliations?")
 
 
 # In case you want to test one-off questions
 if __name__ == "__main__":
     test_question(sys.argv[1])
+
