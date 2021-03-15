@@ -9,7 +9,7 @@ from similarity.longest_common_subsequence import LongestCommonSubsequence
 lcs = LongestCommonSubsequence()
 nlp = spacy.load("en_core_web_sm")
 
-def get_lists(wikitext_file):
+def get_wikitext_lists(wikitext_file):
     with open(wikitext_file, 'r') as in_file:
         text = in_file.read()
         parsed = wtp.parse(text)
@@ -61,7 +61,7 @@ def get_president_timeline(presidents, p):
     if len(years) == 2:
         return f'{years[0]} to {years[1]}'
     else:
-        return years[0]
+        return str(years[0])
 
 
 def get_president(presidents, year):
@@ -131,8 +131,8 @@ def try_list_question(lists, question_doc):
 
 
 if __name__ == '__main__':
-    lists = get_lists('California_Polytechnic_State_University.wikitext')
-    # print(get_lists('California_Polytechnic_State_University.wikitext'))
+    lists = get_wikitext_lists('California_Polytechnic_State_University.wikitext')
+    # print(get_wikitext_lists('California_Polytechnic_State_University.wikitext'))
     # print(clean_markup('[[Robert L. Gibson|Robert “Hoot” Gibson]], [[NASA]] Astronaut<ref>{{Cite web|title=The Astronaut|url=https://magazine.calpoly.edu/fall-2020/the-astronaut/|access-date=2020-10-08|website=Cal Poly Magazine|language=en-US}}</ref>', ignore_headers=False))
     # print(list(lists['Notable alumni']))
     print(try_list_question(lists, nlp(sys.argv[1])))

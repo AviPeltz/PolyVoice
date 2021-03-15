@@ -19,6 +19,7 @@ from spacy.tokens.doc import Doc
 from body_extractor import wikitext_docs_by_title, wikitext_bag_by_title
 from infobox_extractor import wikitext_infobox_docs, wikitext_infobox_numbers
 from paragraph_categorizer import get_topic_dict
+from list_extractor import get_wikitext_lists, try_list_question
 from real_weapon import QAModel
 
 # Your IDE will probably tell you that you don't need this import. You need this import. -SF
@@ -169,7 +170,7 @@ class WikiDaemon:
         self.body_docs = wikitext_docs_by_title(f"{self.wiki_page}.wikitext", self.nlp)
         self.body_topics = self.get_body_topics()
         self.body_bags_of_words = wikitext_bag_by_title(self.body_docs)
-
+        self.lists = get_wikitext_lists(f"{self.wiki_page}.wikitext")
         self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
         self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
 
@@ -264,6 +265,9 @@ class WikiDaemon:
         # Rudimentary check for accessing info box
         # if re.match("how many|how much", question, re.IGNORECASE):
         #     return self.get_infobox_answer(question_synsets)
+        answer = try_list_question(self.lists, question_doc)
+        if answer is not None:
+            return answer
 
         paragraph_scores: List[Tuple[float, Doc]] = []
         # No perfect concept matches, use distance scoring
