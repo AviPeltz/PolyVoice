@@ -115,14 +115,14 @@ class WikiDaemon:
             info_box = json.load(f)
 
         return info_box
-    '''
+
     def download_wiki_infobox(self) -> None:
         wiki_parse = wptools.page(self.wiki_page).get_parse()
         info_box = wiki_parse.data['infobox']
 
         with open(f"{self.wiki_page}.infobox", 'w') as f:
             json.dump(info_box, f)
-    '''
+
     def download_wiki_wikitext(self) -> None:
         wikitext_parse = requests.get(
             f"https://en.wikipedia.org/w/api.php?action=parse&format=json&page={self.wiki_page}&prop=wikitext&formatversion=2",
@@ -145,7 +145,7 @@ class WikiDaemon:
         if self.local_revision_out_of_date(online_revision):
             self.download_wiki_html()
             self.download_wiki_wikitext()
-            #self.download_wiki_infobox()
+            self.download_wiki_infobox()
             self.last_change_date = online_revision
             self.write_page_revision(self.last_change_date)
 
