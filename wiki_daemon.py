@@ -467,7 +467,7 @@ def run_daemon(qa_pipe: Connection):
                     return
 
 
-def test_question(question):
+def test_question(questions):
     init_start_time = time.time()
     wiki_daemon = WikiDaemon(WIKI_PAGE)
     init_end_time = time.time()
@@ -479,15 +479,16 @@ def test_question(question):
     preprocess_end_time = time.time()
     print(f"Document preprocesing took {preprocess_end_time - preprocess_start_time} seconds")
 
-    inquiry_start_time = time.time()
-    answer = wiki_daemon.inquiry(question)
-    inquiry_end_time = time.time()
-    print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
+    for q in questions:
+        inquiry_start_time = time.time()
+        answer = wiki_daemon.inquiry(q)
+        inquiry_end_time = time.time()
+        print(f"Inquiry resolution took {inquiry_end_time - inquiry_start_time} seconds")
 
-    print(answer)
+        print(answer)
 
 
 # In case you want to test one-off questions
 if __name__ == "__main__":
-    test_question(sys.argv[1])
+    test_question(sys.argv[1:])
 
