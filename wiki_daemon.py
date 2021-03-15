@@ -234,8 +234,16 @@ class WikiDaemon:
                 # If the concepts are different parts of speech this might happen
                 return 0
 
+    def preprocess_question_string(self, question: str) -> str:
+        question = re.sub(r"calpoly", "Cal Poly", question)
+        if not question.endswith('?'):
+            question += '?'
+        return question
+
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
+
+        question = self.preprocess_question_string(question)
 
         question_doc = self.nlp(question)
         question_synsets = []
@@ -254,8 +262,8 @@ class WikiDaemon:
                     question_synsets.append(token._.wordnet.synsets()[0])
 
         # Rudimentary check for accessing info box
-        if re.match("how many|how much", question, re.IGNORECASE):
-            return self.get_infobox_answer(question_synsets)
+        # if re.match("how many|how much", question, re.IGNORECASE):
+        #     return self.get_infobox_answer(question_synsets)
 
         paragraph_scores: List[Tuple[float, Doc]] = []
         # No perfect concept matches, use distance scoring
@@ -295,6 +303,7 @@ class WikiDaemon:
             best_answer = None
             best_answer_score = 0
             for result in results:
+                # print(f"({result['answer']}): {result['score']}")
                 if result['score'] > best_answer_score:
                     best_answer_score = result['score']
                     best_answer = result['answer']
@@ -302,7 +311,8 @@ class WikiDaemon:
             if boolean_question:
                 return "Yes" if best_answer_score > BOOLEAN_ANSWER_CONF_THRESH else "No"
 
-            elif best_answer_score > ANSWER_CONF_CUTOFF or (bag_of_words_fallback and best_answer_score > BAG_OF_WORDS_CONF_CUTOFF):
+            elif best_answer_score > ANSWER_CONF_CUTOFF or (
+                    bag_of_words_fallback and best_answer_score > BAG_OF_WORDS_CONF_CUTOFF):
                 return best_answer
 
         # None of our cases figured out an answer
