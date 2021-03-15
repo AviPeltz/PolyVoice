@@ -8,7 +8,7 @@ import requests
 import spacy
 from dateutil import parser as date_parser
 import time
-#import wptools
+import wptools
 import json
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -327,6 +327,7 @@ class WikiDaemon:
         question = re.sub(r"calpoly", "Cal Poly", question)
         if not question.endswith('?'):
             question += '?'
+        question = question[0].upper() + question[1:]
         return question
 
     def get_sentence_from_char_idx(self, doc: Doc, char_idx) -> Optional[Span]:
