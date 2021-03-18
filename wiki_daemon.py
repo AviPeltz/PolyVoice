@@ -328,6 +328,8 @@ class WikiDaemon:
         if not question.endswith('?'):
             question += '?'
         question = question[0].upper() + question[1:]
+        question = re.sub(r'\bcal\b', 'Cal', question)
+        question = re.sub(r'\bpoly', 'Poly', question)
         return question
 
     def get_sentence_from_char_idx(self, doc: Doc, char_idx) -> Optional[Span]:
