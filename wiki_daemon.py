@@ -2,7 +2,7 @@ import datetime
 import re
 import sys
 from multiprocessing.connection import Connection
-from typing import Dict, Optional, List, Tuple, Set
+from typing import Dict, Optional, List, Tuple, Set, Union
 
 import requests
 import spacy
@@ -46,6 +46,7 @@ def get_spacy_pipeline(base_model=SPACY_MODEL) -> Language:
     nlp.add_pipe('spacy_wordnet', after='tagger', config={'lang': 'en'})
 
     return nlp
+
 
 class WikiDaemon:
 
@@ -168,7 +169,7 @@ class WikiDaemon:
 
         return topics_dict
 
-    #def print_paragraphs(paragraphs):
+    # def print_paragraphs(paragraphs):
     #    for par in paragraphs:
     #        print(par)
 
@@ -204,7 +205,7 @@ class WikiDaemon:
             SAT_sen += " In " + str(years[i]) + " entering students had an average SAT Composite of " + str(
                 df[0].values[6, i + 1]) + "."
         paragraphs = [applicant_sen, admits_sen, perc_admit_sen, enrolled_sen, gpa_sen, ACT_sen, SAT_sen]
-        #print_paragraphs(paragraphs)
+        # print_paragraphs(paragraphs)
         return paragraphs
 
     def reload_spacy_docs(self):
@@ -216,14 +217,14 @@ class WikiDaemon:
         self.infobox = wikitext_infobox_docs(f"{self.wiki_page}.infobox", self.nlp)
         self.infobox_numbers = wikitext_infobox_numbers(self.infobox)
 
-
     def parse_infobox_question(self, question):
         doc = self.nlp(question)
         for token in doc:
             print(token.text, token.pos_)
 
     def get_infobox_answer_hardcode(self, question_doc: Doc, question_bag: Set[str]):
-        infobox_docs_dict = wikitext_infobox_docs("California_Polytechnic_State_University.infobox", spacy.load("en_core_web_lg"))
+        infobox_docs_dict = wikitext_infobox_docs("California_Polytechnic_State_University.infobox",
+                                                  spacy.load("en_core_web_lg"))
         if question_doc[0].text.lower() == "what":
             if "motto" in question_bag:
                 if "english" in question_bag:
@@ -262,7 +263,6 @@ class WikiDaemon:
             elif "postgraduates" in question_bag:
                 return infobox_docs_dict['postgraduates']
         return None
-
 
     """
         best_section_similarity = 0
@@ -341,6 +341,36 @@ class WikiDaemon:
                 current_location += len(token.text_with_ws)
         return None
 
+    def rank_paragraphs_from_synsets(self, question_synsets: List[Union[Synset, None]]) -> List[Tuple[float, Doc]]:
+        paragraph_scores = []
+
+        for header, paragraphs_topics in self.body_topics.items():
+            # print(header)
+            for i, paragraph_topics in enumerate(paragraphs_topics):
+                score = 0
+                for q_synset in (synset for synset in question_synsets if synset is not None):
+                    # print(f"Looking for {q_synset.name()} in {paragraph_topics}")
+                    score += self.get_weighted_wordnet_score(q_synset, paragraph_topics)
+                    # print(score)
+
+                if score > 0:
+                    paragraph_scores.append((score, self.body_docs[header][i]))
+
+        return paragraph_scores
+
+    def rank_paragraphs_from_bag(self, question_bag_of_words: Set[str]) -> List[Tuple[float, Doc]]:
+        paragraph_scores = []
+
+        for header, paragraph_bags in self.body_bags_of_words.items():
+
+            for i, paragraph_bag in enumerate(paragraph_bags):
+                score = len(paragraph_bag & question_bag_of_words)
+
+                if score > 0:
+                    paragraph_scores.append((score, self.body_docs[header][i]))
+
+        return paragraph_scores
+
     def inquiry(self, question: str) -> str:
         # Actual call to code for processing here
 
@@ -374,34 +404,17 @@ class WikiDaemon:
         infobox_result = self.transformer.answer_question(question, wikibox_to_para(self.infobox))
         # print(f"infobox result: answer: {infobox_result['answer']}, score: {infobox_result['score']}")
         if infobox_result['score'] >= INFOBOX_CONF_CUTOFF:
-            return self.get_sentence_from_char_idx(self.nlp(wikibox_to_para(self.infobox)), infobox_result['start']).text
+            return self.get_sentence_from_char_idx(self.nlp(wikibox_to_para(self.infobox)),
+                                                   infobox_result['start']).text
             # return infobox_result['answer']
 
-        paragraph_scores: List[Tuple[float, Doc]] = []
-        # No perfect concept matches, use distance scoring
-        for header, paragraphs_topics in self.body_topics.items():
-            # print(header)
-            for i, paragraph_topics in enumerate(paragraphs_topics):
-                score = 0
-                for q_synset in (synset for synset in question_synsets if synset is not None):
-                    # print(f"Looking for {q_synset.name()} in {paragraph_topics}")
-                    score += self.get_weighted_wordnet_score(q_synset, paragraph_topics)
-                    # print(score)
-
-                if score > 0:
-                    paragraph_scores.append((score, self.body_docs[header][i]))
+        paragraph_scores: List[Tuple[float, Doc]] = self.rank_paragraphs_from_synsets(question_synsets)
 
         bag_of_words_fallback = False
         # Wordnet synset matching didn't find anything, use bag of words approach
         if len(paragraph_scores) <= 0:
             bag_of_words_fallback = True
-            for header, paragraph_bags in self.body_bags_of_words.items():
-
-                for i, paragraph_bag in enumerate(paragraph_bags):
-                    score = len(paragraph_bag & question_bag_of_words)
-
-                    if score > 0:
-                        paragraph_scores.append((score, self.body_docs[header][i]))
+            paragraph_scores = self.rank_paragraphs_from_bag(question_bag_of_words)
 
         if len(paragraph_scores) > 0:
             paragraph_scores.sort(key=lambda item: item[0], reverse=True)
@@ -410,7 +423,8 @@ class WikiDaemon:
             # print(paragraph_scores)
 
             # return paragraph_scores[0][1].text
-            results = list(map(lambda p: (self.transformer.answer_question(question, p[1].text), p[1]), paragraph_scores[0:3]))
+            results = list(
+                map(lambda p: (self.transformer.answer_question(question, p[1].text), p[1]), paragraph_scores[0:3]))
 
             best_answer = None
             best_answer_score = 0
@@ -477,7 +491,6 @@ def test_question(questions):
     print(f"Pipeline init took {init_end_time - init_start_time} seconds")
 
     preprocess_start_time = time.time()
-    wiki_daemon.update_wiki_cache()
     wiki_daemon.reload_spacy_docs()
     preprocess_end_time = time.time()
     print(f"Document preprocesing took {preprocess_end_time - preprocess_start_time} seconds")
@@ -494,4 +507,3 @@ def test_question(questions):
 # In case you want to test one-off questions
 if __name__ == "__main__":
     test_question(sys.argv[1:])
-
